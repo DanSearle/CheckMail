@@ -8,17 +8,14 @@
 
 import pyclamav
 import os
-import re
 import email
 import argparse
 import sys
 import tempfile
+import mailbox
 
-mail_split_re = re.compile(r'\s(?=From -)')
 
-
-def print_message(message, signature=None):
-    parsed = email.message_from_string(message)
+def print_message(parsed, signature=None):
     print "From: {0}, Subject: {1}, Signature: {2}".format(parsed["From"],
                                                            parsed["Subject"],
                                                            signature)
@@ -27,7 +24,7 @@ def print_message(message, signature=None):
 def scan_mail(message):
     temp_message = tempfile.NamedTemporaryFile(delete=False)
     with temp_message as f:
-        f.write(message)
+        f.write(message.as_string())
     try:
         result = pyclamav.scanfile(temp_message.name)
         if not result[0]:
@@ -44,8 +41,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('mailfile', nargs='?', type=argparse.FileType('r'),
                         default=sys.stdin,
-                        help="Thunderbird mail file to parse, if not provided input is taken from STDIN")
+                        help="mbox mail file to parse, if not provided input is taken from STDIN")
     args = parser.parse_args()
+    mbox = mailbox.mbox(args.mailfile.name)
 
-    for msg in mail_split_re.split(args.mailfile.read()):
+    for msg in mbox:
         scan_mail(msg)
