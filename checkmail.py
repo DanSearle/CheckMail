@@ -87,21 +87,19 @@ if __name__ == "__main__":
         log.debug("Reading mboxfile {0}".format(filename.name))
         mbox = mailbox.mbox(filename.name)
         log.debug("Loaded mboxfile {0}".format(filename.name))
+        if args.clean:
+            log.debug("Locking mailbox {0}".format(filename.name))
+            mbox.lock()
         try:
-            virus_mail = [y for y in [ScanMessage(key, message) for key, message in mbox.iteritems()] if y.signature]
+            virus_mail = (y for y in (ScanMessage(key, message) for key, message in mbox.iteritems()) if y.signature)
             for v in virus_mail:
                 log.info("Found virus in message {0}".format(v))
                 if args.clean:
-                    log.debug("Locking mailbox {0}".format(filename.name))
-                    mbox.lock()
-                    try:
-                        log.debug("Cleaning {0} from mailbox {1}".format(v, filename.name))
-                        log.info("Message {0} removed".format(v.key))
-                        mbox.remove(v.key)
-                        log.debug("Flushing mailbox {0}".format(filename.name))
-                        mbox.flush()
-                    finally:
-                        log.debug("Unlocking mailbox {0}".format(filename.name))
-                        mbox.unlock()
+                    log.debug("Cleaning {0} from mailbox {1}".format(v, filename.name))
+                    mbox.remove(v.key)
+                    log.info("Message {0} removed".format(v.key))
         finally:
+            log.debug("Flushing mailbox {0}".format(filename.name))
+            mbox.flush()
+            log.debug("Closing mailbox {0}".format(filename.name))
             mbox.close()
