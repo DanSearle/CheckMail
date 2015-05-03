@@ -6,12 +6,9 @@
     suspect messages.
 """
 
-import pyclamav
-import os
-import email
+import pyclamd
 import argparse
 import sys
-import tempfile
 import mailbox
 
 
@@ -20,30 +17,53 @@ def print_message(parsed, signature=None):
                                                            parsed["Subject"],
                                                            signature)
 
-
 def scan_mail(message):
-    temp_message = tempfile.NamedTemporaryFile(delete=False)
-    with temp_message as f:
-        f.write(message.as_string())
-    try:
-        result = pyclamav.scanfile(temp_message.name)
-        if not result[0]:
-            return
+    result = pyclamd.scan_stream(message.as_string())
+    if not result:
+        return
 
-        print_message(message, result[1])
+    print_message(message, result["stream"])
 
-    finally:
-        os.remove(temp_message.name)
 
+class HostPortAction(argparse.Action):
+    def __init__(self, option_strings, dest, nargs=None, **kwargs):
+        if nargs is not None:
+            raise ValueError("nargs not allowed")
+        super(HostPortAction, self).__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        values = values.split(":")
+        if len(values) == 1:
+            values.append(3310)
+        else:
+            values[1] = int(values[1])
+        setattr(namespace, self.dest, tuple(values))
 
 if __name__ == "__main__":
+    default_net = ("localhost", 3310)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('mailfile', nargs='?', type=argparse.FileType('r'),
                         default=sys.stdin,
                         help="mbox mail file to parse, if not provided input is taken from STDIN")
+    group = parser.add_argument_group('ClamConn')
+    group_ex = group.add_mutually_exclusive_group()
+    group_ex.add_argument('-s', '--socket', metavar="SOCKET", type=str,
+                          default="/var/run/clamav/clamd.ctl",
+                          help="Socket file to contact clamd")
+    group_ex.add_argument('-n', '--network', metavar="HOST:PORT", type=str, action=HostPortAction,
+                          default=default_net,
+                          help="Host and port to contact clamd, e.g. localhost:3310")
     args = parser.parse_args()
+
     mbox = mailbox.mbox(args.mailfile.name)
+    if args.network == default_net:
+        try:
+            pyclamd.init_unix_socket(args.socket)
+        except:
+            pyclamd.init_network_socket(args.network[0], args.network[1])
+    else:
+        pyclamd.init_network_socket(args.network[0], args.network[1])
 
     for msg in mbox:
         scan_mail(msg)
