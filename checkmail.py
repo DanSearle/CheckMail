@@ -43,9 +43,8 @@ if __name__ == "__main__":
     default_net = ("localhost", 3310)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('mailfile', nargs='?', type=argparse.FileType('r'),
-                        default=sys.stdin,
-                        help="mbox mail file to parse, if not provided input is taken from STDIN")
+    parser.add_argument('mailfile', nargs='+', type=argparse.FileType('r'),
+                        help="mbox mail file to parse, must be a file and not stdin")
     group = parser.add_argument_group('ClamConn')
     group_ex = group.add_mutually_exclusive_group()
     group_ex.add_argument('-s', '--socket', metavar="SOCKET", type=str,
@@ -56,7 +55,6 @@ if __name__ == "__main__":
                           help="Host and port to contact clamd, e.g. localhost:3310")
     args = parser.parse_args()
 
-    mbox = mailbox.mbox(args.mailfile.name)
     if args.network == default_net:
         try:
             pyclamd.init_unix_socket(args.socket)
@@ -65,5 +63,6 @@ if __name__ == "__main__":
     else:
         pyclamd.init_network_socket(args.network[0], args.network[1])
 
-    for msg in mbox:
-        scan_mail(msg)
+    for filename in args.mailfile:
+        for msg in mailbox.mbox(filename.name):
+            scan_mail(msg)
